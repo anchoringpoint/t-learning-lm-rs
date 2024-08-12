@@ -47,6 +47,7 @@ impl Llama<f32> {
             bos_token_id: config.bos_token_id,
             eos_token_id: config.eos_token_id,
         }
+        
     }
 
     pub fn new_cache(&self) -> KVCache<f32> {
@@ -132,11 +133,11 @@ impl Llama<f32> {
         top_p: f32,
         top_k: u32,
         temperature: f32,
-    ) -> Vec<u32>{
+    ) -> Vec<u32> {
         let mut result = Vec::<u32>::new();
-        
+
         todo!("实现文本生成");
-        
+
         result
     }
 }
@@ -167,7 +168,30 @@ fn mlp(
     rms_w: &Tensor<f32>,
     eps: f32,
 ) {
-    todo!("Implement mlp");
+    //hidden = rms_norm(residual)
+    // gate = hidden @ gate_weight.T
+    // up = hidden @ up_weight.T
+    // hidden = gate * sigmoid(gate) * up ## silu
+    // hidden = hidden @ down_weight.T
+    // residual = hidden + residual
+
+    // Step 1: RMS Normalization
+    OP::rms_norm(hidden_states, residual, rms_w, eps);
+
+    // Step 2: Compute gate
+    OP::matmul_transb(gate, 0., hidden_states, w_gate, 1.0);
+
+    // Step 3: Compute up
+    OP::matmul_transb(up, 0., hidden_states, w_up, 1.0);
+
+    // Step 4: Update hidden_states
+    OP::silu(up,gate);
+
+    // Step 5: Compute down
+    OP::matmul_transb(hidden_states, 0., up, w_down, 1.0);
+
+    // Step 6: Update residual
+    OP::add(residual, hidden_states);
 }
 
 #[test]
@@ -235,5 +259,4 @@ pub fn test_load_safetensors() {
     assert!(float_eq(&model.params.wk[1].data()[100], &-0.21386719, 1e-6));
     assert!(float_eq(&model.params.wv[0].data()[100], &0.041015625, 1e-6));
     assert!(float_eq(&model.params.wo[0].data()[100], &0.01965332, 1e-6));
-
 }

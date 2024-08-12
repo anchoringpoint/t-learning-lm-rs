@@ -71,26 +71,69 @@ pub fn masked_softmax(y: &mut Tensor<f32>) {
 }
 
 pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
-    todo!("实现 rms_norm，计算前做一些必要的检查会帮助你后续调试")
+    let shape = y.shape();
+    assert!(shape.len() == 2);
+    let m = shape[0];
+    let n = shape[1];
+    let x_ = x.data();
+    let w_ = w.data();
+    let y_ = unsafe { y.data_mut() };
+    for i in 0..m {
+        let mut sum = 0.0;
+        for j in 0..n {
+            sum += x_[i * n + j]*x_[i * n + j];
+        }
+        for j in 0..n {
+            y_[i * n + j] = x_[i * n + j] * w_[j] / (sum/(n as f32) + epsilon).sqrt();
+        }
+    }
 }
 
 // y = sigmoid(x) * x * y
 // hint: this is an element-wise operation
 pub fn silu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
-    // let len = y.size();
-    // assert!(len == x.size());
+    let len = y.size();
+    assert!(len == x.size());
 
-    // let _y = unsafe { y.data_mut() };
-    // let _x = x.data();
 
-    todo!("实现 silu，这里给了一些前期准备工作的提示，你可以参考")
+    let _y = unsafe { y.data_mut() };
+    let _x = x.data();
+    for i in 0..len {
+        let x = _x[i];
+        _y[i] *= x / (1. + (-x).exp());
+    }
 }
 
 // C = beta * C + alpha * A @ B^T
 // hint: You don't need to do an explicit transpose of B
 pub fn matmul_transb(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, alpha: f32) {
-    todo!("实现 matmul_transb，计算前做一些必要的检查会帮助你后续调试");
+    let shape_a = a.shape();
+    let shape_b = b.shape();
+    let shape_c = c.shape();
+    assert!(shape_a.len() == 2);
+    assert!(shape_b.len() == 2);
+    assert!(shape_c.len() == 2);
+    let m = shape_a[0];
+    let k = shape_a[1];
+    let n = shape_b[0];
+    let l = shape_b[1];
+    let p = shape_c[0];
+    let q = shape_c[1];
+
+    let a_ = a.data();
+    let b_ = b.data();
+    let c = unsafe { c.data_mut() };
+    for i in 0..m {
+        for j in 0..n {
+            let mut sum = 0.0;
+            for l in 0..k {
+                sum += a_[i * k + l] * b_[j * k + l];
+            }
+            c[i * n + j] = beta * c[i * n + j] + alpha * sum;
+        }
+    }
 }
+
 
 // Dot product of two tensors (treated as vectors)
 #[allow(unused)]
@@ -104,6 +147,36 @@ pub fn dot(x: &Tensor<f32>, y: &Tensor<f32>) -> f32 {
         sum += x_[i] * y_[i];
     }
     sum
+}
+pub fn add(x: &mut Tensor<f32>, y: &Tensor<f32>) {
+    let len = x.size();
+    assert!(len == y.size());
+    let x_ = unsafe { x.data_mut() };
+    let y_ = y.data();
+    for i in 0..len {
+        x_[i] += y_[i];
+    }
+}
+pub fn matmul(a: &Tensor<f32>, b: &Tensor<f32>) -> Tensor<f32> {
+    let shape_a = a.shape();
+    let shape_b = b.shape();
+    assert!(shape_a.len() == 2);
+    assert!(shape_b.len() == 2);
+    let m = shape_a[0];
+    let k = shape_a[1];
+    let n = shape_b[1];
+    assert!(k == shape_b[0]);
+    let a_ = a.data();
+    let b_ = b.data();
+    let mut c = vec![0.0; m * n];
+    for i in 0..m {
+        for j in 0..n {
+            for l in 0..k {
+                c[i * n + j] += a_[i * k + l] * b_[l * n + j];
+            }
+        }
+    }
+    Tensor::new(c, &vec![m, n])
 }
 
 // Sample a index from a tensor (treated as a probability vector)
@@ -170,6 +243,7 @@ pub fn random_sample(x: &Tensor<f32>, top_p: f32, top_k: u32, temperature: f32) 
     // sample
     logits.iter().find(|p| p.val >= plimit).unwrap().tok
 }
+
 
 // Your implementation should at least pass the following tests:
 #[test]
